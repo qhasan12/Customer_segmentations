@@ -5,7 +5,9 @@ import pandas as pd
 
 app = Flask(__name__)
 
-model = joblib.load("customer_segmentation_model.pkl")
+scaler = joblib.load("scaler.pkl")
+kmeans = joblib.load("kmeans_model.pkl")
+cluster_labels = joblib.load("cluster_lables.pkl")
 
 @app.route("/")
 def home():
@@ -21,19 +23,25 @@ def predict():
         print("Parsed JSON:", data)
 
         df = pd.DataFrame(data if isinstance(data, list) else [data])
+        
+        required_cols = ['Annual Income (k$)', 'Spending Score (1-100)']
+        missing = [col for col in required_cols if col not in df.columns]
+        if missing:
+            return jsonify({"error" : f"Missing Columns: {missing}"}), 400
+        
+        scaled = scaler.transform(df[required_cols])
+        cluster_pred = kmeans.predict(scaled)
 
-        preds = model.predict(df)
+        segments = [cluster_labels[c] for c in cluster_pred]
 
         return jsonify({
-            "input": df.to_dict(orient="records"),
-            "predicted_segment": preds.tolist()
+            "input": df.to_dict(orient = "records"),
+            "predicted_cluster": cluster_pred.tolist(),
+            "predicted_segment": segments
         })
     
     except Exception as e:
         return jsonify({"error": str(e)}), 400
-    
-
-    
 
 if __name__ == "__main__":
     app.run(debug = True)
