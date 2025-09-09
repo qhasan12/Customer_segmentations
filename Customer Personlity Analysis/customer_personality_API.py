@@ -3,9 +3,9 @@ import pandas as pd
 import joblib
 
 # Load saved models
-scaler = joblib.load("marketing_scaler.pkl")
-kmeans = joblib.load("marketing_kmeans_model.pkl")
-cluster_labels = joblib.load("marketing_cluster_lables.pkl")
+scaler = joblib.load("Customer Personlity Analysis/marketing_scaler.pkl")
+kmeans = joblib.load("Customer Personlity Analysis/marketing_kmeans_model.pkl")
+cluster_labels = joblib.load("Customer Personlity Analysis/marketing_cluster_labeks.pkl")
 
 app = Flask(__name__)
 
@@ -13,8 +13,8 @@ app = Flask(__name__)
 def home():
     return {"message": "API is running"}
 
-@app.route("/marketing", methods=['POST'])
-def marketing():
+@app.route("/customer-segment", methods=['POST'])
+def customer_segment():
     try:
         data_json = request.get_json()
         data = pd.DataFrame(data_json)
