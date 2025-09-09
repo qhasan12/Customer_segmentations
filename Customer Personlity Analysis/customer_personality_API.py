@@ -2,45 +2,49 @@ from flask import Flask, request, jsonify
 import pandas as pd
 import joblib
 
-# Load saved models
-scaler = joblib.load("Customer Personlity Analysis/marketing_scaler.pkl")
-kmeans = joblib.load("Customer Personlity Analysis/marketing_kmeans_model.pkl")
-cluster_labels = joblib.load("Customer Personlity Analysis/marketing_cluster_labeks.pkl")
+# Load saved ML components
+scaler = joblib.load("Customer Personlity Analysis/segmentation_scaler.pkl")
+model = joblib.load("Customer Personlity Analysis/segmentation_model.pkl")
+segment_encoder = joblib.load("Customer Personlity Analysis/segment_encoder.pkl")
+
+# Features required for prediction
+required_features = [
+    "Income", "TotalSpend", "TotalPurchases", "Effective_Campaigns",
+    "Recency", "Age", "Family_Size", "Has_Children",
+    "Is_In_Relationship", "Is_Single", "Education_Encoded"
+]
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return {"message": "API is running"}
+    return {"message": "Customer Segmentation API is running"}
 
 @app.route("/customer-segment", methods=['POST'])
 def customer_segment():
     try:
+        # Parse input JSON
         data_json = request.get_json()
         data = pd.DataFrame(data_json)
 
-        # Check required columns
-        required_cols = ["Income", "TotalSpend"]
-        missing_cols = [c for c in required_cols if c not in data.columns]
+        # Validate input
+        missing_cols = [c for c in required_features if c not in data.columns]
         if missing_cols:
             return jsonify({"error": f"Missing columns: {missing_cols}"}), 400
 
-        # Preprocess numeric features
-        X = data[required_cols].copy()
-        X_scaled = scaler.transform(X)
+        # Scale and predict
+        X_scaled = scaler.transform(data[required_features])
+        predictions = model.predict(X_scaled)
+        segments = segment_encoder.inverse_transform(predictions)
 
-        # Predict clusters
-        clusters = kmeans.predict(X_scaled)
-        segments = [cluster_labels[c] for c in clusters]
+        # Attach results
+        data["Predicted_Segment"] = segments.tolist()
 
-        # Add predictions
-        data["Cluster"] = clusters
-        data["Segment"] = segments
+        return jsonify(data.to_dict(orient="records"))
 
-        return jsonify(data.to_dict(orient='records'))
-    
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
