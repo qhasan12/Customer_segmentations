@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
 import joblib
 import pandas as pd
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+CORS(app)  # allow all origins by default
 
 # === Load pre-trained rules (exported from notebook with joblib.dump) ===
 rules = joblib.load(r"D:\work\Github\Customer_segmentations\Product_Mining\rules.pkl")
