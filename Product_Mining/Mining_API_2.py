@@ -75,7 +75,6 @@ rules_product = joblib.load(r"D:\work\Github\Customer_segmentations\Product_Mini
 rules_aisle = joblib.load(r"D:\work\Github\Customer_segmentations\Product_Mining\rules_aisle.pkl")
 rules_department = joblib.load(r"D:\work\Github\Customer_segmentations\Product_Mining\rules_department.pkl")
 
-
 def recommend(cart_items, rules, top_n=5):
     cart_items = set(cart_items)
     recs = []
@@ -91,9 +90,10 @@ def recommend(cart_items, rules, top_n=5):
                         "confidence": float(row['confidence']),
                         "lift": float(row['lift'])
                     })
-    # sort by confidence & lift
+    # Sort by confidence & lift
     recs = sorted(recs, key=lambda x: (x['confidence'], x['lift']), reverse=True)
-    # keep top_n unique
+
+    # Keep top_n unique
     seen, final = set(), []
     for r in recs:
         if r["item"] not in seen:
@@ -103,8 +103,7 @@ def recommend(cart_items, rules, top_n=5):
             break
     return final
 
-
-@app.route("/recommend-2", methods=["POST"])
+@app.route("/recommend", methods=["POST"])
 def recommend_all():
     data = request.json
     cart_items = data.get("cart", [])
@@ -114,9 +113,7 @@ def recommend_all():
         "aisle_recommendations": recommend(cart_items, rules_aisle),
         "department_recommendations": recommend(cart_items, rules_department),
     }
-
     return jsonify(result)
-
 
 if __name__ == "__main__":
     app.run(debug=True)
