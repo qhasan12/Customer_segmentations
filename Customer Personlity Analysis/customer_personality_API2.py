@@ -19,39 +19,48 @@ def predict_segment():
         data = pd.DataFrame(data_json)
 
         # --- Normalize Education values ---
-        if "Education" in data.columns:
-            edu_map = {
-                "PhD": "Graduated",
-                "Master": "Graduated",
-                "Graduation": "Graduated",
-                "2n Cycle": "2n Cycle",
-                "Basic": "Basic"
-            }
-            data["Education"] = data["Education"].map(edu_map).fillna(data["Education"])
-            data["Education_Encoded"] = edu_encoder.transform(data["Education"])
-        else:
-            return jsonify({"error": "Missing column: Education"}), 400
+        edu_map = {
+            "PhD": "Graduated",
+            "Master": "Graduated",
+            "Graduation": "Graduated",
+            "2n Cycle": "2n Cycle",
+            "Basic": "Basic"
+        }
+        if "Education" not in data.columns:
+            data["Education"] = "Graduated"   # default
+        data["Education"] = data["Education"].map(edu_map).fillna("Graduated")
+        data["Education_Encoded"] = edu_encoder.transform(data["Education"])
 
         # --- Map Marital_Status ---
-        if "Marital_Status" in data.columns:
-            marital_map = {
-                "In Relationship": 1,
-                "Single": 0
-            }
-            data["Marital_Status"] = data["Marital_Status"].map(marital_map)
-        else:
-            return jsonify({"error": "Missing column: Marital_Status"}), 400
+        marital_map = {
+            "In Relationship": 1,
+            "Single": 0
+        }
+        if "Marital_Status" not in data.columns:
+            data["Marital_Status"] = "Single"   # default
+        data["Marital_Status"] = data["Marital_Status"].map(marital_map).fillna(0)
 
-        # --- Ensure all required features are there ---
+        # --- Required features with defaults ---
         required_features = [
             "Age", "Education_Encoded", "Marital_Status",
             "Spending", "Purchases", "Complain", "Response",
             "Recency", "Income"
         ]
 
-        missing_cols = [c for c in required_features if c not in data.columns]
-        if missing_cols:
-            return jsonify({"error": f"Missing columns: {missing_cols}"}), 400
+        defaults = {
+            "Age": 35,
+            "Spending": 0,
+            "Purchases": 0,
+            "Complain": 0,
+            "Response": 0,
+            "Recency": 50,
+            "Income": 30000
+        }
+
+        for col in required_features:
+            if col not in data.columns:
+                data[col] = defaults.get(col, 0)
+            data[col] = data[col].fillna(defaults.get(col, 0))
 
         # --- Predict ---
         preds = model.predict(data[required_features])
