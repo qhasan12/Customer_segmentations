@@ -1,17 +1,24 @@
 from flask import Flask, request, jsonify
 import joblib
 import re
+import os
+from flask_cors import CORS
 
 # -------------------------
 # Load model + vectorizer
 # -------------------------
-model, vectorizer = joblib.load(r"D:\work\Github\Customer_segmentations\Sentiment\sentiment_model.pkl")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Build the path to the model file
+MODEL_PATH = os.path.join(BASE_DIR, "sentiment_model.pkl")
+
+# Load model + vectorizer
+model, vectorizer = joblib.load(MODEL_PATH)
 # -------------------------
 # Initialize Flask
 # -------------------------
 app = Flask(__name__)
-
+CORS(app)  # Enable CORS for all routes
 # -------------------------
 # Predict endpoint
 # -------------------------
