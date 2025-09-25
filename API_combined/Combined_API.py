@@ -96,9 +96,16 @@ def recommend_all():
             "aisle_recommendations": recommend(cart_items, rules_aisle),
             "department_recommendations": recommend(cart_items, rules_department),
         }
+
+        # Console log the response
+        print("Request cart_items:", cart_items)
+        print("Response:", result)
+
         return jsonify(result)
     except Exception as e:
+        print("Error in /recommend:", e)
         return jsonify({"error": str(e)}), 500
+
 
 
 # --------------------------------------------------
