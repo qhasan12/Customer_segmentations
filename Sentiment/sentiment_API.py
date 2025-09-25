@@ -75,8 +75,14 @@ GROCERY_TESTS = [
     "Thank you for restocking the snacks my kids love.",
     "Produce section looked messy and half the veggies were wilted.",
     "Customer service desk actually solved my issue in minutes, shockingly good.",
-    "Sale signs are confusing — ended up paying more than expected."
+    "Sale signs are confusing — ended up paying more than expected.",
+    "Deli worker went above and beyond, sliced everything exactly how I asked.",
+    "Milk was already expired on the shelf, that’s unacceptable.",
+    "Loving the new layout, feels less cramped than before.",
+    "No carts available again, had to carry everything in a basket.",
+    "Frozen pizzas were on sale, stocked up and super happy about it."
 ]
+
 
 @app.route("/test-sentiments", methods=["GET"])
 def test_sentiments():
