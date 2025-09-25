@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 import re
 import os
+import torch
+from transformers import DistilBertTokenizer, DistilBertModel
+import re
 
 # --------------------------------------------------
 # Initialize app
@@ -111,32 +114,48 @@ def recommend_all():
 # --------------------------------------------------
 # 3) Sentiment Analysis
 # --------------------------------------------------
-sentiment_model, sentiment_vectorizer = joblib.load(
-    os.path.join(BASE_DIR, "sentiment_model.pkl")
-)
+# Load BERT-based sentiment model
+sentiment_model_path = os.path.join(BASE_DIR, "sentiment_model.pkl")
+clf, tokenizer, le = joblib.load(sentiment_model_path)
+bert_model = DistilBertModel.from_pretrained("distilbert-base-uncased")
+
+# Function to get BERT embeddings
+def get_bert_embedding(text):
+    inputs = tokenizer(
+        text, return_tensors="pt", truncation=True, padding=True, max_length=128
+    )
+    with torch.no_grad():
+        outputs = bert_model(**inputs)
+    return outputs.last_hidden_state[:, 0, :].squeeze().numpy()
 
 @app.route("/sentiment", methods=["POST"])
 def predict_sentiment():
     try:
         data = request.get_json(force=True)
-        text = data.get("text", "")
-        if not text:
+
+        # Accept either single text or multiple texts
+        texts = data.get("texts") or [data.get("text")]
+        if not texts or all(t.strip() == "" for t in texts):
             return jsonify({"error": "No text provided"}), 400
 
-        cleaned = re.sub(r"[^a-zA-Z\s]", "", text.lower())
-        X_input = sentiment_vectorizer.transform([cleaned])
-        sentiment = sentiment_model.predict(X_input)[0]
+        results = []
+        for text in texts:
+            cleaned = re.sub(r"[^a-zA-Z\s]", "", text.lower())
+            emb = get_bert_embedding(cleaned).reshape(1, -1)
+            pred = clf.predict(emb)[0]
+            sentiment = le.inverse_transform([pred])[0]
+            results.append({"text": text, "sentiment": sentiment})
 
-        return jsonify({"sentiment": sentiment})
+        return jsonify({"results": results})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # --------------------------------------------------
 # 4) Customer Segmentation
 # --------------------------------------------------
 segmentation_model = joblib.load(
-    os.path.join(BASE_DIR, "customer_segmentation_pipeline.pkl")
+    os.path.join(BASE_DIR, "customer_segmentation_model.pkl")
 )
 
 cluster_labels = {
@@ -145,39 +164,60 @@ cluster_labels = {
     2: "Trend Seekers",
     3: "Loyal Mid-Lifers",
 }
+cluster_features = ["Purchases", "Spending", "Recency", "Response"]
 
-SEGMENT_FEATURES = [
-    "AgeGroup", "Education_Encoded", "Marital_Status",
-    "Income", "Has_Children",
-    "Purchases", "Spending",
-    "Recency", "Response",
-]
+# --------------------------
+# Descriptive profiling logic
+# --------------------------
+def descriptive_profile(cluster_name, row):
+    if cluster_name == "High Spenders":
+        if row.get("Has_Children", 0) == 1:
+            return "Wealthy, Family-Focused"
+        else:
+            return "Wealthy, Single / No Children"
 
-SEGMENT_DEFAULTS = {
-    "AgeGroup": 1, "Education_Encoded": 0, "Marital_Status": 0,
-    "Income": 0, "Has_Children": 0,
-    "Purchases": 0, "Spending": 0,
-    "Recency": 0, "Response": 0,
-}
+    elif cluster_name == "Budget-Conscious":
+        if row.get("Has_Children", 0) == 1:
+            return "Budget-Savvy Family"
+        else:
+            return "Budget-Conscious Single"
+
+    elif cluster_name == "Trend Seekers":
+        if row.get("AgeGroup", 99) == 0:  # 0 = Young (18–25)
+            return "Young Trend Seekers"
+        else:
+            return "Trend-Seeking Adult"
+
+    elif cluster_name == "Loyal Mid-Lifers":
+        if row.get("Has_Children", 0) == 1:
+            return "Loyal, Family-Oriented"
+        else:
+            return "Loyal Adult / No Children"
+
+    return cluster_name + " - Other"
 
 @app.route("/predict-segment", methods=["POST"])
-def predict_segment():
+def predict():
     try:
-        data_json = request.get_json()
-        data = pd.DataFrame(data_json)
+        data = request.get_json()
+        df = pd.DataFrame([data])
 
-        for col in SEGMENT_FEATURES:
-            if col not in data.columns:
-                data[col] = SEGMENT_DEFAULTS[col]
-            data[col] = data[col].fillna(SEGMENT_DEFAULTS[col])
+        # Extract only the trained features for clustering
+        X = df[cluster_features]
 
-        preds = segmentation_model.predict(data[SEGMENT_FEATURES])
-        data["Predicted_Cluster"] = preds
-        data["Cluster_Label"] = data["Predicted_Cluster"].map(cluster_labels)
+        # Predict cluster (use segmentation_model, not pipeline!)
+        cluster_id = int(segmentation_model.predict(X)[0])
+        cluster_name = cluster_labels.get(cluster_id, "Unknown Cluster")
 
-        return jsonify(data.to_dict(orient="records"))
+        # Use profiling rules
+        profile = descriptive_profile(cluster_name, data)
+
+        return jsonify({
+            "Profile_Label": profile  # ✅ only send descriptive profile
+        })
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e)})
 
 
 # --------------------------------------------------
@@ -194,7 +234,6 @@ def home():
             "/predict-segment",
         ],
     }
-
 
 # --------------------------------------------------
 # Run
