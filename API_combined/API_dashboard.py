@@ -151,9 +151,25 @@ def add_customer():
     new_customer = pd.DataFrame([data])
     df = pd.concat([df, new_customer], ignore_index=True)
 
+    # Save updated dataset
     df.to_csv(DATA_PATH, index=False)
 
-    return segmentation_insights()
+    # Predict cluster for the new customer
+    features = ["Purchases", "Spending", "Recency", "Response"]
+    cluster_id = int(segmentation_model.predict(new_customer[features])[0])
+    cluster_label = cluster_labels.get(cluster_id, "Unknown Cluster")
+
+    profile = descriptive_profile(
+        cluster_label,
+        new_customer.get("Has_Children", pd.Series([0]))[0],
+        new_customer.get("AgeGroup", pd.Series([1]))[0]
+    )
+
+    return jsonify({
+        "message": "Customer added successfully",
+        "cluster": cluster_label,
+        "profile": profile
+    })
 
 # --------------------------
 # Full Data Endpoint
